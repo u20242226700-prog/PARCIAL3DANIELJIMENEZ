@@ -1,0 +1,147 @@
+<ion-header [translucent]="true">
+  <ion-toolbar color="primary">
+    <ion-title>Helpdesk TI</ion-title>
+    <ion-badge slot="end" color="light" class="ion-margin-end">Eficiencia {{ eficiencia }}%</ion-badge>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true" class="ion-padding">
+  <ion-grid>
+    <ion-row>
+      <ion-col size="12" size-md="4">
+        <ion-card>
+          <ion-card-header>
+            <ion-card-subtitle>Eficiencia de resolución</ion-card-subtitle>
+            <ion-card-title [class.ok]="eficiencia >= 50" [class.bajo]="eficiencia < 50">{{ eficiencia }}%</ion-card-title>
+          </ion-card-header>
+          <ion-card-content>{{ tickets.length - pendientes }} de {{ tickets.length }} resueltos</ion-card-content>
+        </ion-card>
+      </ion-col>
+      <ion-col size="6" size-md="4">
+        <ion-card>
+          <ion-card-header>
+            <ion-card-subtitle>Pendientes</ion-card-subtitle>
+            <ion-card-title>{{ pendientes }}</ion-card-title>
+          </ion-card-header>
+        </ion-card>
+      </ion-col>
+      <ion-col size="6" size-md="4">
+        <ion-card>
+          <ion-card-header>
+            <ion-card-subtitle>Mostrando</ion-card-subtitle>
+            <ion-card-title>{{ lista.length }}</ion-card-title>
+          </ion-card-header>
+        </ion-card>
+      </ion-col>
+    </ion-row>
+
+    <ion-row>
+      <ion-col size="12" size-md="6">
+        <ion-searchbar placeholder="Buscar por asunto o #id" [(ngModel)]="busqueda"
+          (ionInput)="filtrar()" [debounce]="200"></ion-searchbar>
+      </ion-col>
+      <ion-col size="6" size-md="3">
+        <ion-select label="Estado" labelPlacement="stacked" interface="popover"
+          [(ngModel)]="filtroEstado" (ionChange)="filtrar()">
+          <ion-select-option value="todos">Todos</ion-select-option>
+          <ion-select-option value="pendiente">Pendiente</ion-select-option>
+          <ion-select-option value="resuelto">Completado</ion-select-option>
+        </ion-select>
+      </ion-col>
+      <ion-col size="6" size-md="3">
+        <ion-select label="Prioridad" labelPlacement="stacked" interface="popover"
+          [(ngModel)]="filtroPrioridad" (ionChange)="filtrar()">
+          <ion-select-option value="todas">Todas</ion-select-option>
+          <ion-select-option value="alta">Alta</ion-select-option>
+          <ion-select-option value="media">Media</ion-select-option>
+          <ion-select-option value="baja">Baja</ion-select-option>
+        </ion-select>
+      </ion-col>
+    </ion-row>
+
+    <ion-row>
+      <ion-col>
+        <ion-button fill="clear" size="small" (click)="limpiar()">Limpiar filtros</ion-button>
+      </ion-col>
+    </ion-row>
+
+    <ion-row>
+      <ion-col size="12">
+        @if (cargando) {
+          <div class="centro"><ion-spinner></ion-spinner></div>
+        }
+        @if (error) {
+          <div class="centro">
+            <ion-note color="danger">{{ error }}</ion-note>
+            <ion-button fill="outline" size="small" (click)="cargarTickets()">Reintentar</ion-button>
+          </div>
+        }
+        @if (!cargando && !error && lista.length === 0) {
+          <p class="centro">No hay tickets con esos filtros</p>
+        }
+
+        <ion-list>
+          @for (t of lista; track t.id) {
+            <ion-item button (click)="abrir(t)">
+              <ion-avatar slot="start">
+                <div class="avatar">U{{ t.usuarioId }}</div>
+              </ion-avatar>
+              <ion-label>
+                <h2>Ticket #{{ t.id }}</h2>
+                <p>{{ t.asunto }}</p>
+              </ion-label>
+              <div slot="end" class="badges">
+                <ion-badge [color]="colorPrioridad(t.prioridad)">{{ t.prioridad }}</ion-badge>
+                <ion-badge [color]="t.resuelto ? 'success' : 'warning'">
+                  {{ t.resuelto ? 'Completado' : 'Pendiente' }}
+                </ion-badge>
+              </div>
+            </ion-item>
+          }
+        </ion-list>
+      </ion-col>
+    </ion-row>
+  </ion-grid>
+
+  <ion-modal [isOpen]="modalAbierto" (didDismiss)="alCerrarModal()">
+    <ng-template>
+      <ion-header>
+        <ion-toolbar>
+          <ion-title>Asignar ticket</ion-title>
+          <ion-buttons slot="end">
+            <ion-button (click)="cerrar()">Cerrar</ion-button>
+          </ion-buttons>
+        </ion-toolbar>
+      </ion-header>
+      <ion-content class="ion-padding">
+        @if (seleccionado) {
+          <h3>Ticket #{{ seleccionado.id }}</h3>
+          <p>{{ seleccionado.asunto }}</p>
+          <ion-note>Usuario {{ seleccionado.usuarioId }} · prioridad actual: {{ seleccionado.prioridad }}</ion-note>
+
+          <ion-list>
+            <ion-item>
+              <ion-select label="Estado *" placeholder="Seleccione" [(ngModel)]="estadoModal">
+                <ion-select-option value="pendiente">Pendiente</ion-select-option>
+                <ion-select-option value="resuelto">Completado</ion-select-option>
+              </ion-select>
+            </ion-item>
+            <ion-item>
+              <ion-select label="Nueva prioridad *" placeholder="Seleccione" [(ngModel)]="prioridadModal">
+                <ion-select-option value="alta">Alta</ion-select-option>
+                <ion-select-option value="media">Media</ion-select-option>
+                <ion-select-option value="baja">Baja</ion-select-option>
+              </ion-select>
+            </ion-item>
+          </ion-list>
+
+          @if (intentoGuardar && (!estadoModal || !prioridadModal)) {
+            <ion-note color="danger">Debe seleccionar estado y prioridad</ion-note>
+          }
+
+          <ion-button expand="block" class="ion-margin-top" (click)="guardar()">Guardar cambios</ion-button>
+        }
+      </ion-content>
+    </ng-template>
+  </ion-modal>
+</ion-content>
